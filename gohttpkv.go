@@ -3,8 +3,11 @@ package main
 import "net/http"
 import "fmt"
 import "log"
+import "sync"
 
-func SetHandler(db map[string]string, w http.ResponseWriter, r *http.Request) {
+func SetHandler(db map[string]string, mu *sync.RWMutex, w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	defer mu.Unlock()
 	q := r.URL.Query()
 	if len(q) != 1 {
 		http.Error(w, fmt.Sprintf("must supply exactly 1 key"), 400)
@@ -25,7 +28,9 @@ func SetHandler(db map[string]string, w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func GetHandler(db map[string]string, w http.ResponseWriter, r *http.Request) {
+func GetHandler(db map[string]string, mu *sync.RWMutex, w http.ResponseWriter, r *http.Request) {
+	mu.RLock()
+	defer mu.RUnlock()
 	q := r.URL.Query()
 	if len(q) != 1 {
 		errmsg := fmt.Sprintf("must supply exactly 1 key")
@@ -52,13 +57,14 @@ func GetHandler(db map[string]string, w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	db := make(map[string]string)
+	mu := new(sync.RWMutex)
 
 	http.HandleFunc("/set", func(w http.ResponseWriter, r *http.Request) {
-		SetHandler(db, w, r)
+		SetHandler(db, mu, w, r)
 	})
 
 	http.HandleFunc("/get", func(w http.ResponseWriter, r *http.Request) {
-		GetHandler(db, w, r)
+		GetHandler(db, mu, w, r)
 	})
 
 	log.Fatal(http.ListenAndServe(":4000", nil))
